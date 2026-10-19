@@ -1,0 +1,106 @@
+----------------------------------------------------------------------------------
+-- Carnet: CF250910
+----------------------------------------------------------------------------------
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity top_alu_sistema is
+    Port (
+        clk_osc   : in  STD_LOGIC;                      -- Reloj base de la Zybo (125 MHz)
+        reset     : in  STD_LOGIC;                      -- Reset síncrono
+        out_res   : out STD_LOGIC_VECTOR(7 downto 0);   -- Resultado de la ALU
+        out_zero  : out STD_LOGIC                       -- Bandera de Cero 
+    );
+end top_alu_sistema;
+
+architecture Behavioral of top_alu_sistema is
+
+    -- Declaración de la ALU (Ejercicio 6)
+    component alu_8bits
+        Port (
+            a         : in  STD_LOGIC_VECTOR(7 downto 0);
+            b         : in  STD_LOGIC_VECTOR(7 downto 0);
+            opcode    : in  STD_LOGIC_VECTOR(2 downto 0);
+            resultado : out STD_LOGIC_VECTOR(7 downto 0);
+            zero      : out STD_LOGIC
+        );
+    end component;
+
+    -- Declaración de la Memoria ROM (memoria_alu)
+    component memoria_alu
+        Port (
+            clka  : in  STD_LOGIC;
+            ena   : in  STD_LOGIC;
+            wea   : in  STD_LOGIC_VECTOR(0 DOWNTO 0);
+            addra : in  STD_LOGIC_VECTOR(3 DOWNTO 0);
+            dina  : in  STD_LOGIC_VECTOR(31 DOWNTO 0);
+            douta : out STD_LOGIC_VECTOR(31 DOWNTO 0)
+        );
+    end component;
+
+    -- Señales internas de interconexión
+    signal rom_addr : STD_LOGIC_VECTOR(3 downto 0) := "0000";
+    signal rom_data : STD_LOGIC_VECTOR(31 downto 0);
+    
+    signal s_opcode : STD_LOGIC_VECTOR(2 downto 0);
+    signal s_opA    : STD_LOGIC_VECTOR(7 downto 0);
+    signal s_opB    : STD_LOGIC_VECTOR(7 downto 0);
+
+    -- Contador de ciclos para avanzar de dirección en la ROM de forma secuencial
+    signal contador_tiempo : integer range 0 to 10 := 0;
+    signal dir_contador    : unsigned(3 downto 0) := "0000";
+
+begin
+
+    -- Instanciación de la Memoria ROM (memoria_alu)
+    rom_inst : memoria_alu
+        Port map (
+            clka  => clk_osc,
+            ena   => '1',                    -- Habilitador de memoria siempre activo
+            wea   => "0",                    -- Modo lectura pura (Write Enable en 0)
+            addra => rom_addr,
+            dina  => (others => '0'),        -- No se escribe nada, entrada a tierra
+            douta => rom_data
+        );
+
+    -- Instanciación de la ALU
+    alu_inst : alu_8bits
+        Port map (
+            a         => s_opA,
+            b         => s_opB,
+            opcode    => s_opcode,
+            resultado => out_res,
+            zero      => out_zero
+        );
+
+    -- Mapeo/Desglose de los campos desde el bus de 32 bits de la ROM
+    -- [31:29] Opcode (3 bits), [27:20] Operando A (8 bits), [19:12] Operando B (8 bits)
+    s_opcode <= rom_data(31 downto 29);
+    s_opA    <= rom_data(28 downto 21);
+    s_opB    <= rom_data(20 downto 13);
+
+    -- Proceso secuencial para avanzar automáticamente por las direcciones de la ROM
+    process(clk_osc, reset)
+    begin
+        if (reset = '1') then
+            contador_tiempo <= 0;
+            dir_contador    <= "0000";
+        elsif rising_edge(clk_osc) then
+            if (contador_tiempo = 4) then -- Cambia de instrucción cada 5 ciclos de reloj
+                contador_tiempo <= 0;
+                if (dir_contador = 4) then
+                    dir_contador <= "0000"; -- Reinicia la secuencia al completar las 5 operaciones
+                else
+                    dir_contador <= dir_contador + 1;
+                end if;
+            else
+                contador_tiempo <= contador_tiempo + 1;
+            end if;
+        end if;
+    end process;
+
+    rom_addr <= std_logic_vector(dir_contador);
+
+end Behavioral;
