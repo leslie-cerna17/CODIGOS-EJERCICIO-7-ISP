@@ -1,0 +1,63 @@
+----------------------------------------------------------------------------------
+-- Carnet: CF250910
+----------------------------------------------------------------------------------
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity top_alu_sistema_tb is
+end top_alu_sistema_tb;
+
+architecture Behavioral of top_alu_sistema_tb is
+
+    -- Declaración de la ALU DEL SISTEMA
+    component top_alu_sistema 
+        Port (
+            clk_osc   : in  STD_LOGIC;
+            reset     : in  STD_LOGIC;
+            out_res   : out STD_LOGIC_VECTOR(7 downto 0);
+            out_zero  : out STD_LOGIC
+        );
+    end component;
+
+    signal tb_clk_osc : STD_LOGIC := '0';
+    signal tb_reset   : STD_LOGIC := '1';
+    signal tb_res     : STD_LOGIC_VECTOR(7 downto 0);
+    signal tb_zero    : STD_LOGIC;
+
+    constant CLK_PERIOD : time := 8 ns; -- Periodo de reloj de 125 MHz (Zybo)
+
+begin
+
+    uut: top_alu_sistema
+        Port map (
+            clk_osc  => tb_clk_osc,
+            reset    => tb_reset,
+            out_res  => tb_res,
+            out_zero => tb_zero
+        );
+
+    -- Generador del reloj de 125 MHz
+    clk_process : process
+    begin
+        tb_clk_osc <= '0';
+        wait for CLK_PERIOD / 2;
+        tb_clk_osc <= '1';
+        wait for CLK_PERIOD / 2;
+    end process;
+
+    -- Proceso de estímulos
+    stim_proc: process
+    begin
+        tb_reset <= '1';
+        wait for 40 ns;
+        
+        tb_reset <= '0'; -- Libera el reset
+        
+        -- Se deja correr la simulación suficiente tiempo para observar la lectura de las 5 operaciones en secuencia
+        wait for 300 ns;
+        
+        wait;
+    end process;
+
+end Behavioral;
